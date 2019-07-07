@@ -13,12 +13,11 @@ public class FanDB implements DB {
     private SequenceGenerator sequenceGenerator;
     
     public FanDB(String path) throws IOException {
-        this.sequenceGenerator = new SequenceGenerator();
         this.memTable = new MemTable();
         this.wal = new KVLog(path);
         this.lock = new Object();
         long lastSequenceId = this.wal.scanIntoMemtable(this.memTable);
-        this.sequenceGenerator.init(lastSequenceId);
+        this.sequenceGenerator = new SequenceGenerator(lastSequenceId);
     }
     
     public void put(byte[] key, byte[] value) throws IOException {

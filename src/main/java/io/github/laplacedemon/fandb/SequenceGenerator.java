@@ -7,19 +7,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * if write tps : 1kw/s.
  * 29247 year will over.
  * @author zhuoyun
- *
  */
 public class SequenceGenerator {
     private AtomicLong lastSequenceId;
+    
     public SequenceGenerator() {
         this.lastSequenceId = new AtomicLong(0);
     }
     
-    public long nextSequenceId() {
-        return lastSequenceId.decrementAndGet();
+    public SequenceGenerator(final long id) {
+        this.lastSequenceId = new AtomicLong(id);
     }
     
-    public void init(long id) {
-        this.lastSequenceId.set(id);
+    public long nextSequenceId() {
+        return lastSequenceId.incrementAndGet();
     }
+    
 }
