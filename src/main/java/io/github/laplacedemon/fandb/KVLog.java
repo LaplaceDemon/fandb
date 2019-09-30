@@ -6,20 +6,23 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class KVLog {
     private FileChannel appendFileChannel;
     private FileChannel readFileChannel;
+    private Lock appendLock;
 
     public KVLog(String pathname) throws IOException {
         File file = new File(pathname);
         Path path = file.toPath();
         this.appendFileChannel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         this.readFileChannel = FileChannel.open(path, StandardOpenOption.READ);
+        this.appendLock = new ReentrantLock();
     }
     
     /**
-     * 
      * [key.length | key | value.length |value]
      * @param key
      * @param value
@@ -27,13 +30,6 @@ public class KVLog {
      * @throws IOException
      */
     public long append(byte[] key, byte[] value) throws IOException {
-        long position;
-        try {
-            position = appendFileChannel.position();
-        } catch (IOException e) {
-            throw e;
-        }
-        
         int logDataSize = 0;
         logDataSize += 8;
         logDataSize += key.length;
@@ -47,13 +43,20 @@ public class KVLog {
         messageBuf.put(value);
         messageBuf.flip();
         
-        int write = appendFileChannel.write(messageBuf);
-        appendFileChannel.force(true);
-        long valueOffset = position + 4 + key.length;
-        return valueOffset;
+        // get position与append write 两个动作的组合必须是原子的
+        try {
+            appendLock.lock();
+            long position = appendFileChannel.position();
+            appendFileChannel.write(messageBuf);
+            appendFileChannel.force(true);
+            long valueOffset = position + 4 + key.length;
+            return valueOffset;
+        } finally {
+            appendLock.unlock();
+        }
     }
 
-    public byte[] getValue(long valueOffset) throws IOException {
+    public byte[] getValue(long valueOffset, long valueSize) throws IOException {
         ByteBuffer valueLengthBuffer = ByteBuffer.allocate(4);
         this.readFileChannel.read(valueLengthBuffer, valueOffset);
         valueLengthBuffer.flip();
