@@ -2,7 +2,7 @@ package io.github.laplacedemon.fandb;
 
 public interface MemTable {
     
-    public void put(byte[] key, long valueOffset, long valueSize);
+    public void put(byte[] key, long valueOffset, int valueSize);
     
     public ValueIndexer get(byte[] key);
 

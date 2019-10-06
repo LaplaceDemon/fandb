@@ -9,7 +9,8 @@ public class FanDB implements DB {
 //    private Lock writeLock;
 //    private Lock readLock;
 
-    public FanDB(String path) throws IOException {
+    public FanDB(DBConfig dbconfig) throws IOException {
+        String path = dbconfig.getPath();
         this.memTable = new HashMemTable();
         this.wal = new KVLog(path);
         this.wal.scanIntoMemtable(this.memTable);
@@ -29,7 +30,8 @@ public class FanDB implements DB {
         if (valueIndexer == null) {
             return null;
         }
-        return this.wal.getValue(valueOffset, valueSize);
+        
+        return this.wal.getValue(valueIndexer.getOffset(), valueIndexer.getSize());
     }
 
     @Override

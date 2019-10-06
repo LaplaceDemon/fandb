@@ -1,18 +1,16 @@
-package fandb;
+package io.github.laplacedemon.fandb;
 
 import java.io.IOException;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.github.laplacedemon.fandb.DB;
-import io.github.laplacedemon.fandb.FanDB;
-
 public class TestFanDB {
     
     @Test
     public void testPut() throws IOException {
-        DB db = new FanDB("testdb.dat");
+        DBConfig dbconfig = DBConfig.newBuilder().path("testdb.dat").build();
+        DB db = new FanDB(dbconfig);
         db.put("hello".getBytes(), "world".getBytes());
         
         byte[] value = db.get("hello".getBytes());
@@ -21,7 +19,8 @@ public class TestFanDB {
     
     @Test
     public void testPutPut() throws IOException {
-        DB db = new FanDB("testdb.dat");
+        DBConfig dbconfig = DBConfig.newBuilder().path("testdb.dat").build();
+        DB db = new FanDB(dbconfig);
         db.put("hello".getBytes(), "world0".getBytes());
         db.put("hello".getBytes(), "world1".getBytes());
         db.put("hello".getBytes(), "world2".getBytes());
@@ -33,7 +32,8 @@ public class TestFanDB {
     
     @Test
     public void testPutPutPut() throws IOException {
-        DB db = new FanDB("testdb.dat");
+        DBConfig dbconfig = DBConfig.newBuilder().path("testdb.dat").build();
+        DB db = new FanDB(dbconfig);
         db.put("hello".getBytes(), "world0".getBytes());
         db.put("hello".getBytes(), "world1".getBytes());
         db.put("hello".getBytes(), "world2".getBytes());
@@ -54,7 +54,8 @@ public class TestFanDB {
     
     @Test
     public void testPutGetDeleteGet() throws IOException {
-        DB db = new FanDB("testdb.dat");
+        DBConfig dbconfig = DBConfig.newBuilder().path("testdb.dat").build();
+        DB db = new FanDB(dbconfig);
         db.put("hello".getBytes(), "world9".getBytes());
         
         {
@@ -68,6 +69,7 @@ public class TestFanDB {
             byte[] value = db.get("hello".getBytes());
             Assert.assertEquals(value, null);
         }
+        
     }
     
 //    @Test

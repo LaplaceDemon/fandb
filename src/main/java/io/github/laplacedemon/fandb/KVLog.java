@@ -23,10 +23,14 @@ public class KVLog {
     }
     
     /**
-     * [key.length | key | value.length |value]
+     * position
+     *    |
+     *    [key.length | key | value.length |value]
+     *                                     |
+     *                                  position
      * @param key
      * @param value
-     * @return
+     * @return the value's offset
      * @throws IOException
      */
     public long append(byte[] key, byte[] value) throws IOException {
@@ -43,26 +47,24 @@ public class KVLog {
         messageBuf.put(value);
         messageBuf.flip();
         
-        // get position与append write 两个动作的组合必须是原子的
+        // "get position"与"append write"两个动作的组合必须是原子的
+        long position = 0l;
         try {
             appendLock.lock();
-            long position = appendFileChannel.position();
+            position = appendFileChannel.position();
             appendFileChannel.write(messageBuf);
             appendFileChannel.force(true);
-            long valueOffset = position + 4 + key.length;
-            return valueOffset;
         } finally {
             appendLock.unlock();
         }
+        
+        long valueOffset = position + 4 + key.length + 4;
+        return valueOffset;
     }
 
-    public byte[] getValue(long valueOffset, long valueSize) throws IOException {
-        ByteBuffer valueLengthBuffer = ByteBuffer.allocate(4);
-        this.readFileChannel.read(valueLengthBuffer, valueOffset);
-        valueLengthBuffer.flip();
-        int valueLength = valueLengthBuffer.getInt();
-        ByteBuffer valueBuffer = ByteBuffer.allocate(valueLength);
-        this.readFileChannel.read(valueBuffer, valueOffset+4);
+    public byte[] getValue(long valueOffset, int valueSize) throws IOException {
+        ByteBuffer valueBuffer = ByteBuffer.allocate(valueSize);
+        this.readFileChannel.read(valueBuffer, valueOffset);
         valueBuffer.flip();
         return valueBuffer.array();
     }
@@ -73,6 +75,9 @@ public class KVLog {
         while(true) {
             ByteBuffer fileBuffer = ByteBuffer.allocate(size);
             int readBytes = this.readFileChannel.read(fileBuffer, 0);
+            if (readBytes == -1) {
+                return 0;
+            }
             fileBuffer.flip();
             if (readBytes > 0) {
                 // in memory
@@ -86,22 +91,18 @@ public class KVLog {
                     fileBuffer.get(keyBytes);  // read bytes, +keyLength
                     readOffset += (4 + keyLength);
                     
-                    int valueOffset = readOffset;
-                    
+                    int valueLengthOffset = readOffset;
+                    int valueOffset = valueLengthOffset + 4;
                     int valueLength = fileBuffer.getInt();  // read int, +4
                     readOffset +=(4 + valueLength);
                     fileBuffer.position(readOffset);
                     
-                    memtable.put(keyBytes, valueOffset);
+                    memtable.put(keyBytes, valueOffset, valueLength);
                 }
                 
             }
         }
         
-    }
-
-    public long append(long seqid, byte[] key, byte[] value) {
-        return 0;
     }
 
 }

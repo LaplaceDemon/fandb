@@ -9,7 +9,7 @@ public class HashMemTable implements MemTable {
         this.map = new ConcurrentHashMap<String, ValueIndexer>();
     }
 
-    public void put(byte[] key, long valueOffset, long valueSize) {
+    public void put(byte[] key, long valueOffset, int valueSize) {
         ValueIndexer valueIndexer = new ValueIndexer(valueOffset, valueSize);
         this.map.put(new String(key), valueIndexer);
     }

@@ -3,9 +3,9 @@ package io.github.laplacedemon.fandb;
 public final class ValueIndexer {
     private int fileId;
     private long offset;
-    private long size;
+    private int size;
 
-    public ValueIndexer(long offset, long size) {
+    public ValueIndexer(long offset, int size) {
         super();
         this.offset = offset;
         this.size = size;
@@ -19,12 +19,12 @@ public final class ValueIndexer {
         this.offset = offset;
     }
 
-    public long getSize() {
+    public int getSize() {
         return size;
     }
 
-    public void setSize(long size) {
+    public void setSize(int size) {
         this.size = size;
     }
-
+    
 }
