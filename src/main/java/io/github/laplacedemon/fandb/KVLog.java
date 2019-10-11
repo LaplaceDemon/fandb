@@ -13,6 +13,7 @@ public class KVLog {
     private FileChannel appendFileChannel;
     private FileChannel readFileChannel;
     private Lock appendLock;
+    private SequenceGenerator sequenceGenerator;
 
     public KVLog(String pathname) throws IOException {
         File file = new File(pathname);
@@ -20,14 +21,15 @@ public class KVLog {
         this.appendFileChannel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         this.readFileChannel = FileChannel.open(path, StandardOpenOption.READ);
         this.appendLock = new ReentrantLock();
+        this.sequenceGenerator = new SequenceGenerator();
     }
     
     /**
-     * position
+     * position (before writing data)
      *    |
-     *    [key.length | key | value.length |value]
-     *                                     |
-     *                                  position
+     *    [ key.length | key | value.length | value | sn ]
+     *                                      |
+     *                                 value offset
      * @param key
      * @param value
      * @return the value's offset
@@ -35,9 +37,10 @@ public class KVLog {
      */
     public long append(byte[] key, byte[] value) throws IOException {
         int logDataSize = 0;
-        logDataSize += 8;
+        logDataSize += (4 + 4);
         logDataSize += key.length;
         logDataSize += value.length;
+        logDataSize += 8;
         
         ByteBuffer messageBuf = ByteBuffer.allocate(logDataSize);
         
@@ -45,12 +48,14 @@ public class KVLog {
         messageBuf.put(key);
         messageBuf.putInt(value.length);
         messageBuf.put(value);
-        messageBuf.flip();
         
         // "get position"与"append write"两个动作的组合必须是原子的
         long position = 0l;
         try {
             appendLock.lock();
+            long nextSequenceId = sequenceGenerator.nextSequenceId();
+            messageBuf.putLong(nextSequenceId);
+            messageBuf.flip();
             position = appendFileChannel.position();
             appendFileChannel.write(messageBuf);
             appendFileChannel.force(true);
@@ -86,20 +91,25 @@ public class KVLog {
                         return 0l;
                     }
                     
-                    int keyLength = fileBuffer.getInt(); // read int, +4
+                    // read key
+                    int keyLength = fileBuffer.getInt(); // read key length
                     byte[] keyBytes = new byte[keyLength];
-                    fileBuffer.get(keyBytes);  // read bytes, +keyLength
+                    fileBuffer.get(keyBytes);  // read key bytes
+                    
+                    // read key offset 
                     readOffset += (4 + keyLength);
                     
                     int valueLengthOffset = readOffset;
                     int valueOffset = valueLengthOffset + 4;
-                    int valueLength = fileBuffer.getInt();  // read int, +4
+                    int valueLength = fileBuffer.getInt();  // read value length
                     readOffset +=(4 + valueLength);
+                    long sn = fileBuffer.getLong(readOffset);         // read int, +4
+                    readOffset += 8;
                     fileBuffer.position(readOffset);
-                    
-                    memtable.put(keyBytes, valueOffset, valueLength);
+                    if(sn > 0) {
+                        memtable.put(keyBytes, valueOffset, valueLength);
+                    }
                 }
-                
             }
         }
         

@@ -5,7 +5,7 @@ import java.io.IOException;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestFanDB {
+public class TestFanDBPutAndGet {
     
     @Test
     public void testPut() throws IOException {
@@ -72,12 +72,4 @@ public class TestFanDB {
         
     }
     
-//    @Test
-//    public void test() throws IOException {
-//        DB db = new FanDB("testdb.dat");
-//        db.put("hello".getBytes(), "world".getBytes());
-//        
-//        byte[] value = db.get("hello".getBytes());
-//        System.out.println(new String(value));
-//    }
 }

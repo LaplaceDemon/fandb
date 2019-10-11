@@ -5,18 +5,12 @@ import java.io.IOException;
 public class FanDB implements DB {
     private MemTable memTable;
     private KVLog wal;
-//    private ReadWriteLock rwlock;
-//    private Lock writeLock;
-//    private Lock readLock;
 
     public FanDB(DBConfig dbconfig) throws IOException {
         String path = dbconfig.getPath();
         this.memTable = new HashMemTable();
         this.wal = new KVLog(path);
         this.wal.scanIntoMemtable(this.memTable);
-//        this.rwlock = new ReentrantReadWriteLock();
-//        this.writeLock = this.rwlock.writeLock();
-//        this.readLock = this.rwlock.readLock();
     }
 
     public void put(byte[] key, byte[] value) throws IOException {
@@ -36,7 +30,8 @@ public class FanDB implements DB {
 
     @Override
     public void delete(byte[] key) {
-        this.memTable.delete(key);
+        this.memTable.get(key);
+        ValueIndexer deleteValueIndexer = this.memTable.delete(key);
     }
 
 //    public LinkedHashMap<byte[], byte[]> range(byte[] start, byte[] end) throws IOException {
