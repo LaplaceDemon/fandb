@@ -3,9 +3,10 @@ package io.github.laplacedemon.fandb;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * max long is 9223372036854775807.
- * if write tps : 1kw/s.
- * 29247 year will over.
+ * the first number is 1. <br>
+ * max long is 9223372036854775807.<br>
+ * if write tps : 1kw/s.<br>
+ * 29247 year will over.<br>
  * @author zhuoyun
  */
 public class SequenceGenerator {

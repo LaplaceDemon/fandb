@@ -29,9 +29,13 @@ public class FanDB implements DB {
     }
 
     @Override
-    public void delete(byte[] key) {
-        this.memTable.get(key);
-        ValueIndexer deleteValueIndexer = this.memTable.delete(key);
+    public void delete(byte[] key) throws IOException {
+        ValueIndexer valueIndexer = this.memTable.get(key);
+        if (valueIndexer == null) {
+            return ;
+        }
+        this.wal.clean(valueIndexer.getOffset() + valueIndexer.getSize(), 8);
+        this.memTable.delete(key);
     }
 
 //    public LinkedHashMap<byte[], byte[]> range(byte[] start, byte[] end) throws IOException {

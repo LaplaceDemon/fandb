@@ -12,14 +12,19 @@ import java.util.concurrent.locks.ReentrantLock;
 public class KVLog {
     private FileChannel appendFileChannel;
     private FileChannel readFileChannel;
+    private FileChannel deleteDataFileChannel;
     private Lock appendLock;
     private SequenceGenerator sequenceGenerator;
-
+    
     public KVLog(String pathname) throws IOException {
-        File file = new File(pathname);
+        this(new File(pathname));
+    }
+    
+    public KVLog(File file) throws IOException {
         Path path = file.toPath();
         this.appendFileChannel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         this.readFileChannel = FileChannel.open(path, StandardOpenOption.READ);
+        this.deleteDataFileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
         this.appendLock = new ReentrantLock();
         this.sequenceGenerator = new SequenceGenerator();
     }
@@ -53,8 +58,9 @@ public class KVLog {
         long position = 0l;
         try {
             appendLock.lock();
-            long nextSequenceId = sequenceGenerator.nextSequenceId();
-            messageBuf.putLong(nextSequenceId);
+            // first number is 1
+            long sn = sequenceGenerator.nextSequenceId();
+            messageBuf.putLong(sn);
             messageBuf.flip();
             position = appendFileChannel.position();
             appendFileChannel.write(messageBuf);
@@ -77,6 +83,7 @@ public class KVLog {
     public long scanIntoMemtable(MemTable memtable) throws IOException {
         int size = 1024*256;  // 256kb
         int readOffset = 0;
+        long lastSN = 0l;
         while(true) {
             ByteBuffer fileBuffer = ByteBuffer.allocate(size);
             int readBytes = this.readFileChannel.read(fileBuffer, 0);
@@ -88,7 +95,7 @@ public class KVLog {
                 // in memory
                 while(true) {
                     if(readOffset >= readBytes) {
-                        return 0l;
+                        return lastSN;
                     }
                     
                     // read key
@@ -103,16 +110,30 @@ public class KVLog {
                     int valueOffset = valueLengthOffset + 4;
                     int valueLength = fileBuffer.getInt();  // read value length
                     readOffset +=(4 + valueLength);
-                    long sn = fileBuffer.getLong(readOffset);         // read int, +4
+                    lastSN = fileBuffer.getLong(readOffset);         // read int, +4
                     readOffset += 8;
                     fileBuffer.position(readOffset);
-                    if(sn > 0) {
+                    
+                    // lastSN == 0, the row's data has been deleted
+                    if(lastSN > 0) {
                         memtable.put(keyBytes, valueOffset, valueLength);
                     }
                 }
             }
         }
-        
+    }
+
+    public void close() throws IOException {
+        this.appendFileChannel.close();
+        this.readFileChannel.close();
+        this.deleteDataFileChannel.close();
+    }
+
+    public void clean(long offset, int size) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(size);
+        this.deleteDataFileChannel.position(offset);
+        this.deleteDataFileChannel.write(buf);
+        this.deleteDataFileChannel.force(true);
     }
 
 }

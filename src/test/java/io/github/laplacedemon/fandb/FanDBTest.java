@@ -5,7 +5,7 @@ import java.io.IOException;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestFanDBPutAndGet {
+public class FanDBTest {
     
     @Test
     public void testPut() throws IOException {
@@ -57,19 +57,12 @@ public class TestFanDBPutAndGet {
         DBConfig dbconfig = DBConfig.newBuilder().path("testdb.dat").build();
         DB db = new FanDB(dbconfig);
         db.put("hello".getBytes(), "world9".getBytes());
-        
-        {
-            byte[] value = db.get("hello".getBytes());
-            Assert.assertEquals("world9", new String(value));
-        }
-        
+        byte[] value0 = db.get("hello".getBytes());
+        Assert.assertEquals("world9", new String(value0));
+    
         db.delete("hello".getBytes());
-        
-        {
-            byte[] value = db.get("hello".getBytes());
-            Assert.assertEquals(value, null);
-        }
-        
+        byte[] value1 = db.get("hello".getBytes());
+        Assert.assertEquals(value1, null);
     }
     
 }
