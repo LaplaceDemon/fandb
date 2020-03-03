@@ -11,30 +11,24 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class KVLog {
     private FileChannel appendFileChannel;
-    private FileChannel readFileChannel;
-    private FileChannel deleteDataFileChannel;
     private Lock appendLock;
+    private Path path;
     private SequenceGenerator sequenceGenerator;
-    
+
     public KVLog(String pathname) throws IOException {
         this(new File(pathname));
     }
-    
+
     public KVLog(File file) throws IOException {
-        Path path = file.toPath();
-        this.appendFileChannel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        this.readFileChannel = FileChannel.open(path, StandardOpenOption.READ);
-        this.deleteDataFileChannel = FileChannel.open(path, StandardOpenOption.WRITE);
+        this.path = file.toPath();
+        this.appendFileChannel = FileChannel.open(this.path, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         this.appendLock = new ReentrantLock();
         this.sequenceGenerator = new SequenceGenerator();
     }
-    
+
     /**
-     * position (before writing data)
-     *    |
-     *    [ key.length | key | value.length | value | sn ]
-     *                                      |
-     *                                 value offset
+     * position (before writing data) | [ key.length | key | value.length | value | sn ] | value offset
+     * 
      * @param key
      * @param value
      * @return the value's offset
@@ -46,14 +40,14 @@ public class KVLog {
         logDataSize += key.length;
         logDataSize += value.length;
         logDataSize += 8;
-        
+
         ByteBuffer messageBuf = ByteBuffer.allocate(logDataSize);
-        
+
         messageBuf.putInt(key.length);
         messageBuf.put(key);
         messageBuf.putInt(value.length);
         messageBuf.put(value);
-        
+
         // "get position"与"append write"两个动作的组合必须是原子的
         long position = 0l;
         try {
@@ -68,54 +62,60 @@ public class KVLog {
         } finally {
             appendLock.unlock();
         }
-        
+
         long valueOffset = position + 4 + key.length + 4;
         return valueOffset;
     }
 
     public byte[] getValue(long valueOffset, int valueSize) throws IOException {
         ByteBuffer valueBuffer = ByteBuffer.allocate(valueSize);
-        this.readFileChannel.read(valueBuffer, valueOffset);
+        try (FileChannel readFileChannel = FileChannel.open(this.path, StandardOpenOption.READ)) {
+            readFileChannel.read(valueBuffer, valueOffset);
+        }
         valueBuffer.flip();
         return valueBuffer.array();
     }
-    
+
     public long scanIntoMemtable(MemTable memtable) throws IOException {
-        int size = 1024*256;  // 256kb
+        int size = 1024 * 256; // 256kb
         int readOffset = 0;
         long lastSN = 0l;
-        while(true) {
+        while (true) {
             ByteBuffer fileBuffer = ByteBuffer.allocate(size);
-            int readBytes = this.readFileChannel.read(fileBuffer, 0);
+            int readBytes;
+            try (FileChannel readFileChannel = FileChannel.open(this.path, StandardOpenOption.READ)) {
+                readBytes = readFileChannel.read(fileBuffer, 0);
+            }
+
             if (readBytes == -1) {
                 return 0;
             }
             fileBuffer.flip();
             if (readBytes > 0) {
                 // in memory
-                while(true) {
-                    if(readOffset >= readBytes) {
+                while (true) {
+                    if (readOffset >= readBytes) {
                         return lastSN;
                     }
-                    
+
                     // read key
                     int keyLength = fileBuffer.getInt(); // read key length
                     byte[] keyBytes = new byte[keyLength];
-                    fileBuffer.get(keyBytes);  // read key bytes
-                    
-                    // read key offset 
+                    fileBuffer.get(keyBytes); // read key bytes
+
+                    // read key offset
                     readOffset += (4 + keyLength);
-                    
+
                     int valueLengthOffset = readOffset;
                     int valueOffset = valueLengthOffset + 4;
-                    int valueLength = fileBuffer.getInt();  // read value length
-                    readOffset +=(4 + valueLength);
-                    lastSN = fileBuffer.getLong(readOffset);         // read int, +4
+                    int valueLength = fileBuffer.getInt(); // read value length
+                    readOffset += (4 + valueLength);
+                    lastSN = fileBuffer.getLong(readOffset); // read int, +4
                     readOffset += 8;
                     fileBuffer.position(readOffset);
-                    
+
                     // lastSN == 0, the row's data has been deleted
-                    if(lastSN > 0) {
+                    if (lastSN > 0) {
                         memtable.put(keyBytes, valueOffset, valueLength);
                     }
                 }
@@ -125,15 +125,15 @@ public class KVLog {
 
     public void close() throws IOException {
         this.appendFileChannel.close();
-        this.readFileChannel.close();
-        this.deleteDataFileChannel.close();
     }
 
     public void clean(long offset, int size) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate(size);
-        this.deleteDataFileChannel.position(offset);
-        this.deleteDataFileChannel.write(buf);
-        this.deleteDataFileChannel.force(true);
+        try (FileChannel fileChannel = FileChannel.open(this.path, StandardOpenOption.WRITE)) {
+            fileChannel.position(offset);
+            fileChannel.write(buf);
+            fileChannel.force(true);
+        }
     }
 
 }
